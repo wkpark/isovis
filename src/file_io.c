@@ -18,348 +18,506 @@
 
 
 #include <stdio.h>
-#include <df.h>
-#include <vg.h>
 #include "isovis.h"
 
+#ifdef HDF
+/* This is for the NCSA HDF format */
+#include <df.h>
+#endif
+
+#ifdef VSET
+/* This is for the NCSA Vset format */
+#include <vg.h>
+#endif
+
 #ifdef DTM
-  /* This is for the NCSA Data Transport Mechanism protocol */
+/* This is for the NCSA Data Transport Mechanism protocol */
 #include <dtm.h>
 #include <sdl.h>
 #endif
 
-/**************************** get_data ****************************/
-/**************************** get_data ****************************/
-/**************************** get_data ****************************/
-/**************************** get_data ****************************/
-
-int get_data(filename,data,xdim,ydim,zdim)
+get_hdf_data(filename, data, xdim, ydim, zdim, max, min)
 char *filename;
 float **data;
-int *xdim,*ydim,*zdim;
-/* This subroutine will read in the data file. */
+int *xdim, *ydim, *zdim;
+float *max, *min;
+/* This subroutine will read in the HDF data file. */
 {
 
-  int rank;
-  int shape[3];
-  int size;
-  int ret;
+#ifdef HDF
+    int rank;
+    int shape[3];
+    int size;
+    int ret;
+    int maxmin;
+    void get_max_min();		/* searches for max and min */
+    char *malloc();
 
-  ret=DFSDgetdims(filename,&rank,shape,3);
-  if (ret != 0) {
-     fprintf(stderr,"%s: error from DFSDgetdims %d for %s\n",
-             MY_NAME,ret,filename);
-     return -1;
-  }
+    ret = DFSDgetdims(filename, &rank, shape, 3);
+    if (ret != 0) {
+	fprintf(stderr, "%s: error from DFSDgetdims %d for %s\n",
+		MY_NAME, ret, filename);
+	return -1;
+    }
+    if (rank != 3) {
+	fprintf(stderr, "%s: error, %s is rank %d; must be 3\n",
+		MY_NAME, filename, rank);
+	return -1;
+    }
+    *xdim = shape[2];
+    *ydim = shape[1];
+    *zdim = shape[0];
+    if (VERBOSE)
+	printf("%s: data set size xdim=%d ydim=%d zdim=%d\n",
+	       MY_NAME, *xdim, *ydim, *zdim);
 
-  if (rank != 3) {
-     fprintf(stderr,"%s: error, %s is rank %d; must be 3\n",
-             MY_NAME,filename,rank);
-     return -1;
-  }
+    size = (*xdim) * (*ydim) * (*zdim) * sizeof(float);
+    if ((*data = (float *) malloc(size)) == NULL) {
+	fprintf(stderr, "%s: error, not enough memory for the data set\n",
+		MY_NAME);
+	return -1;
+    }
+    maxmin = DFSDgetmaxmin(max, min);
+    ret = DFSDgetdata(filename, rank, shape, *data);
+    if (ret != 0) {
+	fprintf(stderr, "%s: error from DFSDgetdata %d file %s\n",
+		MY_NAME, ret, filename);
+	return -1;
+    }
+    if (maxmin == -1)
+	get_max_min(*data, *xdim, *ydim, *zdim, max, min);
+    return 0;
+#else
+    fprintf(stderr, "%s: hdf support not installed\n");
+    exit(1);
+#endif
 
-  *xdim = shape[2];  *ydim = shape[1];  *zdim = shape[0];
-  if (VERBOSE)
-     printf("%s: data set size xdim=%d ydim=%d zdim=%d\n",
-            MY_NAME,*xdim,*ydim,*zdim);
-
-  size = (*xdim) * (*ydim) * (*zdim) * sizeof(float);
-  if ((*data = (float *)malloc(size)) == NULL) {
-     fprintf(stderr,"%s: error, not enough memory for the data set\n",MY_NAME);
-     return -1;
-  }
+}
 
 
-  ret=DFSDgetdata(filename,rank,shape,*data);
-  if (ret != 0) {
-     fprintf(stderr,"%s: error from DFSDgetdata %d file %s\n",
-             MY_NAME,ret,filename);
-     return -1;
-  }
+get_raw_data(filename, data, xdim, ydim, zdim, max, min)
+char *filename;
+float **data;
+int xdim, ydim, zdim;
+float *max, *min;
+/* This subroutine will read in the raw data file. */
+{
 
-  return 0;
+    int size;
+    int ret;
+    FILE *fd;
+    void get_max_min();		/* searches for max and min */
 
+    size = xdim*ydim*zdim*sizeof(float);
+    if ((*data = (float *) malloc(size)) == NULL) {
+	fprintf(stderr, "%s: error, not enough memory for the data set\n",
+		MY_NAME);
+	return -1;
+    }
+    if ((fd = fopen(filename, "r")) == NULL) {
+	fprintf(stderr, "%s: can't open file %s\n", MY_NAME, filename);
+	return -1;
+    }
+    if (fread(*data, size, 1, fd) != 1) {
+	fprintf(stderr, "%s: short read from file %s\n", MY_NAME, filename);
+	return -1;
+    }
+    fclose(fd);
+    get_max_min(*data, xdim, ydim, zdim, max, min);
+    return 0;
 }
 
 
 #ifdef SGI
-int write_image(image,xdim,ydim)
+write_image(image, xdim, ydim)
 char *image;
-int xdim,ydim;
+int xdim, ydim;
 {
 
-  if (DF24addimage(OUTNAME,image,xdim,ydim) != 0) {
-     fprintf(stderr,"%s: error, DF24addimage returned an error\n",MY_NAME);
-     return -1;
-  }
+#ifdef HDF
+    if (DF24addimage(OUTNAME, image, xdim, ydim) != 0) {
+	fprintf(stderr, "%s: error, DF24addimage returned an error\n", MY_NAME);
+	return -1;
+    }
+    if (VERBOSE)
+	printf("%s: saved R24 image to %s\n", MY_NAME, OUTNAME);
 
-  if (VERBOSE)
-     printf("%s: saved R24 image to %s\n",MY_NAME,OUTNAME);
-
-  return 0;
+    return 0;
+#else
+    fprintf(stderr, "%s: HDF output support not installed\n", MY_NAME);
+    exit(1);
+#endif
 
 }
 #endif
 
-
-
-
-
-/**************************** write_wft ****************************/
-/**************************** write_wft ****************************/
-/**************************** write_wft ****************************/
-/**************************** write_wft ****************************/
-
-int write_wft(px,py,pz,nverts,conn,nconn)
-float *px,*py,*pz;
-int *conn;
-int nverts,nconn;
-/* This subroutine writes out a wft object file from the polygons */
+write_wft(p, nverts, n)
+float *p, *n;
+int nverts;
+/* This subroutine writes out a wavefront object file from the polygons */
 {
 
-  FILE *wft_fp;
-  register int i,j;
+    FILE *wft_fp;
+    register int i, j;
+    float ***conn, ***tricompact(), ***tricompactn();
+    int uniq;
+    float **vlist;
 
-  /* open the ascii file for writing */
-  if ((wft_fp=fopen(WFT_NAME,"w")) == NULL) {
-     fprintf(stderr,"%s: error, can't open wft file %s\n",MY_NAME,WFT_NAME);
-     return -1;
-  }
+    /* write out minimal number number of vertices */
+    conn = NORMAL_TYPE ? tricompactn(p, n, nverts) : tricompact(p, nverts);
+    uniq = conn[nverts] - conn[0]; vlist = conn[0];
 
-  /* insert the default group 'd' */
-  if (fprintf(wft_fp,"g d\n") == -1) {
-     fprintf(stderr,"%s: error, can't write to wft file %s\n",MY_NAME,WFT_NAME);
-     return -1;
-  }
+    /* open the ascii file for writing */
+    if ((wft_fp = fopen(WFT_NAME, "w")) == NULL) {
+	fprintf(stderr, "%s: error, can't open wft file %s\n",
+		MY_NAME, WFT_NAME);
+	return -1;
+    }
+    /* insert the default group 'd' */
+    if (fprintf(wft_fp, "g d\n") == -1) {
+	fprintf(stderr, "%s: error, can't write to wft file %s\n",
+		MY_NAME, WFT_NAME);
+	return -1;
+    }
+    /* write out all of the vertices */
+    for (i = 0; i < uniq; i++) {
+	float *v = vlist[i];
+	if (fprintf(wft_fp, "v %f %f %f\n", v[0], v[1], v[2]) == -1) {
+	    fprintf(stderr, "%s: error, can't write to wft file %s\n",
+		    MY_NAME, WFT_NAME);
+	    return -1;
+	}
+    }
+    if (NORMAL_TYPE) {
+	/* write out all of the normals */
+	for (i = 0; i < uniq; i++) {
+	    float *v = n+(vlist[i]-p);
+	    if (fprintf(wft_fp, "vn %f %f %f\n", v[0], v[1], v[2]) == -1) {
+		fprintf(stderr, "%s: error, can't write to wft file %s\n",
+			MY_NAME, WFT_NAME);
+		return -1;
+	    }
+	}
+	/* smoothing group */
+	if (fprintf(wft_fp, "s 1\n") == -1) {
+	    fprintf(stderr, "%s: error, can't write to wft file %s\n",
+		    MY_NAME, WFT_NAME);
+	}
+	/* write out the connectivity */
+	j = 0;
+	for (i = 0; i < nverts / 3; i++) {
+	    int c1=conn[j]-conn[0]+1,
+		c2=conn[j+1]-conn[0]+1,
+		c3=conn[j+2]-conn[0]+1;
+	    if (fprintf(wft_fp, "fo %d//%d %d//%d %d//%d\n", c1, c1, c2, c2,
+			c3, c3) == -1) {
+		fprintf(stderr, "%s: error, can't write to wft file %s\n",
+			MY_NAME, WFT_NAME);
+		return -1;
+	    }
+	    j += 3;
+	}
+    } else {
 
-  /* write out all of the vertices */
-  for (i=0;i<nverts;i++)
-    if (fprintf(wft_fp,"v %f %f %f\n",*(px+i),*(py+i),*(pz+i)) == -1) {
-       fprintf(stderr,"%s: error, can't write to wft file %s\n",
-               MY_NAME,WFT_NAME);
-       return -1;
+	/* write out the connectivity */
+	j = 0;
+	for (i = 0; i < nverts / 3; i++) {
+	    int c1=conn[j]-conn[0]+1,
+		c2=conn[j+1]-conn[0]+1,
+		c3=conn[j+2]-conn[0]+1;
+	    if (fprintf(wft_fp, "fo %d %d %d\n", c1, c2, c3) == -1) {
+		fprintf(stderr, "%s: error, can't write to wft file %s\n",
+			MY_NAME, WFT_NAME);
+		return -1;
+	    }
+	    j += 3;
+	}
     }
 
-  /* write out the connectivity */
-  j=0;
-  for (i=0;i<nconn;i++) {
-    if (fprintf(wft_fp,"fo %d %d %d\n",*(conn+j),
-                *(conn+j+1),*(conn+j+2)) == -1) {
-       fprintf(stderr,"%s: error, can't write to wft file %s\n",
-               MY_NAME,WFT_NAME);
-       return -1;
+    /* close the file */
+    if (fclose(wft_fp) == -1) {
+	fprintf(stderr, "%s: error, can't close wft file %s\n",
+		MY_NAME, WFT_NAME);
+	return -1;
     }
-    j+=3;
-  }
-
-  /* close the file */
-  if (fclose(wft_fp) == -1) {
-     fprintf(stderr,"%s: error, can't close wft file %s\n",MY_NAME,WFT_NAME);
-     return -1;
-  }
-
-  return 0;
+    free((char *)conn[0]); free((char *)conn);
+    return 0;
 
 }
 
-
-
-
-/**************************** write_vset ****************************/
-/**************************** write_vset ****************************/
-/**************************** write_vset ****************************/
-/**************************** write_vset ****************************/
-
-int write_vset(px,py,pz,nverts,conn,nconn)
-float *px,*py,*pz;
-int *conn;
-int nverts,nconn;
+write_vset(p, nverts)
+float *p;
+int nverts;
 /* This subroutine will write out a set of vertices and connectivity */
 /* to an HDF file containing a single VSet for programs such as      */
 /* NCSA PolyView. */
 {
 
-  DF *df_ptr;
-  VGROUP *root;
-  VDATA *vpx, *vpy, *vpz;
-  VDATA *vplist3;
+#ifdef VSET
+    DF *df_ptr;
+    VGROUP *root;
+    VDATA *vpx, *vpy, *vpz;
+    VDATA *vplist3;
+    int i, *icon;
+    float *pp;
+    char *malloc();
+    float ***conn, ***tricompact();
+    int uniq;
+    float **vlist;
 
-  /* open an HDF file for the VSet polygons */
-  if ((df_ptr = DFopen(VSET_NAME, DFACC_ALL, 0)) == NULL) {
-     fprintf(stderr,"%s: error, couldn't open %s for vset\n",
-             MY_NAME,VSET_NAME);
-     return -1;
-  }
+    /* write out minimal number number of vertices */
+    conn = tricompact(p, nverts);
+    uniq = conn[nverts] - conn[0]; vlist = conn[0];
 
-  /* Create a root node for the Vgroup */
-  if ((root = (VGROUP *) Vattach(df_ptr, -1, "w")) == NULL) {
-     fprintf(stderr,"%s: error from Vattach in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
 
-  Vsetname(root, "/");
+    if ((pp = (float *) malloc(nverts * sizeof(float))) == 0) {
+	fprintf(stderr, "%s: error, could allocate buffer for vset\n", MY_NAME);
+	return -1;
+    }
+    /* open an HDF file for the VSet polygons */
+    if ((df_ptr = DFopen(VSET_NAME, DFACC_ALL, 0)) == NULL) {
+	fprintf(stderr, "%s: error, couldn't open %s for vset\n",
+		MY_NAME, VSET_NAME);
+	return -1;
+    }
+    /* Create a root node for the Vgroup */
+    if ((root = (VGROUP *) Vattach(df_ptr, -1, "w")) == NULL) {
+	fprintf(stderr, "%s: error from Vattach in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    Vsetname(root, "/");
 
-  /* Create the vdatas - actual vertices and connectivity */
-  if ((vpx = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
-     fprintf(stderr,"%s: error from Vattach in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  VSsetname(vpx, "px");
-  VSsetfields(vpx, "px");
-  if (VSwrite(vpx, px, nverts, NO_INTERLACE) == -1) {
-     fprintf(stderr,"%s: error from VSwrite in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
+    /* Create the vdatas - actual vertices and connectivity */
+    if ((vpx = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
+	fprintf(stderr, "%s: error from Vattach in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    VSsetname(vpx, "px");
+    VSsetfields(vpx, "px");
+#pragma ivdep
+    for (i = 0; i < uniq; i++)
+	pp[i] = vlist[i][0];
+    if (VSwrite(vpx, pp, uniq, NO_INTERLACE) == -1) {
+	fprintf(stderr, "%s: error from VSwrite in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    if ((vpy = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
+	fprintf(stderr, "%s: error from VSattach in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    VSsetname(vpy, "py");
+    VSsetfields(vpy, "py");
+#pragma ivdep
+    for (i = 0; i < uniq; i++)
+	pp[i] = vlist[i][1];
+    if (VSwrite(vpy, pp, uniq, NO_INTERLACE) == -1) {
+	fprintf(stderr, "%s: error from VSwrite in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    if ((vpz = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
+	fprintf(stderr, "%s: error from VSattach in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    VSsetname(vpz, "pz");
+    VSsetfields(vpz, "pz");
+#pragma ivdep
+    for (i = 0; i < uniq; i++)
+	pp[i] = vlist[i][2];
+    if (VSwrite(vpz, pp, uniq, NO_INTERLACE) == -1) {
+	fprintf(stderr, "%s: error from VSwrite in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    icon = (int *) pp;
+    for (i = 0; i < nverts; i++)
+	icon[i] = conn[i]-conn[0] + 1;
 
-  if ((vpy = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
-     fprintf(stderr,"%s: error from VSattach in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  VSsetname(vpy, "py");
-  VSsetfields(vpy, "py");
-  if (VSwrite(vpy, py, nverts, NO_INTERLACE) == -1) {
-     fprintf(stderr,"%s: error from VSwrite in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
+    /* Create the connectivity */
+    if ((vplist3 = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
+	fprintf(stderr, "%s: error from VSattach in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    VSfdefine(vplist3, "plist3", LOCAL_INTTYPE, 3);
+    VSsetname(vplist3, "plist3");
+    VSsetfields(vplist3, "plist3");
+    if (VSwrite(vplist3, icon, nverts / 3, NO_INTERLACE) == -1) {
+	fprintf(stderr, "%s: error from VSwrite in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    free((char *) pp); free((char *)conn[0]); free((char *)conn);
 
-  if ((vpz = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
-     fprintf(stderr,"%s: error from VSattach in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  VSsetname(vpz, "pz");
-  VSsetfields(vpz, "pz");
-  if (VSwrite(vpz, pz, nverts, NO_INTERLACE) == -1) {
-     fprintf(stderr,"%s: error from VSwrite in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
+    /* insert data in the root */
+    if (Vinsert(root, vpx) == -1) {
+	fprintf(stderr, "%s: error from Vinsert in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    if (Vinsert(root, vpy) == -1) {
+	fprintf(stderr, "%s: error from Vinsert in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    if (Vinsert(root, vpz) == -1) {
+	fprintf(stderr, "%s: error from Vinsert in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    if (Vinsert(root, vplist3) == -1) {
+	fprintf(stderr, "%s: error from Vinsert in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    /* Detach Vsets */
+    VSdetach(vpx);
+    VSdetach(vpy);
+    VSdetach(vpz);
+    VSdetach(vplist3);
+    Vdetach(root);
 
-  /* Create the connectivity */
-  if ((vplist3 = (VDATA *) VSattach(df_ptr, -1, "w")) == NULL) {
-     fprintf(stderr,"%s: error from VSattach in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  VSfdefine(vplist3, "plist3", LOCAL_INTTYPE, 3);
-  VSsetname(vplist3, "plist3");
-  VSsetfields(vplist3, "plist3");
-  if (VSwrite(vplist3, conn, nconn, NO_INTERLACE) == -1) {
-     fprintf(stderr,"%s: error from VSwrite in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-
-  /* insert data in the root */
-  if (Vinsert(root,vpx) == -1) {
-     fprintf(stderr,"%s: error from Vinsert in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  if (Vinsert(root,vpy) == -1) {
-     fprintf(stderr,"%s: error from Vinsert in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  if (Vinsert(root,vpz) == -1) {
-     fprintf(stderr,"%s: error from Vinsert in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-  if (Vinsert(root,vplist3) == -1) {
-     fprintf(stderr,"%s: error from Vinsert in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-
-  /* Detach Vsets */
-  VSdetach(vpx);
-  VSdetach(vpy);
-  VSdetach(vpz);
-  VSdetach(vplist3);
-  Vdetach(root);
-
-  /* Close the HDF file */
-  if (DFclose(df_ptr) == -1) {
-     fprintf(stderr,"%s: error from DFclose in write_vset\n",
-             MY_NAME);
-     return -1;
-  }
-
-  return 0;
+    /* Close the HDF file */
+    if (DFclose(df_ptr) == -1) {
+	fprintf(stderr, "%s: error from DFclose in write_vset\n",
+		MY_NAME);
+	return -1;
+    }
+    return 0;
+#endif
 
 }
 
-
-
-
-/**************************** write_dtm ****************************/
-/**************************** write_dtm ****************************/
-/**************************** write_dtm ****************************/
-/**************************** write_dtm ****************************/
-
-int write_dtm(px,py,pz,nverts,conn,nconn)
-float *px,*py,*pz;
-int *conn;
-int nverts,nconn;
+write_dtm(p, nverts)
+float *p;
+int nverts;
 /* This subroutine writes out a dtm object file from the polygons */
 /* This subroutine will use the DTM communications protocol */
 {
 
 #ifdef DTM
 
-  char header[SDLsize];
-  float triangle[27];
-  float *ptr;
-  int i;
-  float norm[3];
+    char header[SDLsize];
+    float triangle[27];
+    float *ptr;
+    int i;
+    float norm[3];
 
-  void calc_normal();
+    void calc_normal();
 
-  SDLsetClass(header);
-  SDLsetPrimative(header,SDLtriangle,9);
-  DTMbeginWrite(1,header,SDLsize);
+    SDLsetClass(header);
+    SDLsetPrimative(header, SDLtriangle, 9);
+    DTMbeginWrite(1, header, SDLsize);
 
-  i=0;
-  /* set the color at each vertex - white for now */
-  triangle[21] = triangle[12] = triangle[3] = 1.0;
-  triangle[22] = triangle[13] = triangle[4] = 1.0;
-  triangle[23] = triangle[14] = triangle[5] = 1.0;
+    i = 0;
+    /* set the color at each vertex - white for now */
+    triangle[21] = triangle[12] = triangle[3] = 1.0;
+    triangle[22] = triangle[13] = triangle[4] = 1.0;
+    triangle[23] = triangle[14] = triangle[5] = 1.0;
 
-  while (i<nverts) {
-    triangle[0] = *(px+i);
-    triangle[1] = *(py+i);
-    triangle[2] = *(pz+i);
-    i++;
+    while (i < nverts) {
+	triangle[0] = *p++;
+	triangle[1] = *p++;
+	triangle[2] = *p++;
+	i++;
 
-    triangle[9] = *(px+i);
-    triangle[10]= *(py+i);
-    triangle[11]= *(pz+i);
-    i++;
+	triangle[9] = *p++;
+	triangle[10] = *p++;
+	triangle[11] = *p++;
+	i++;
 
-    triangle[18] = *(px+i);
-    triangle[19] = *(py+i);
-    triangle[20] = *(pz+i);
-    i++;
+	triangle[18] = *p++;
+	triangle[19] = *p++;
+	triangle[20] = *p++;
+	i++;
 
-    /* handle the normals */
-    calc_normal(&triangle[0],&triangle[9],&triangle[18],&triangle[6]);
-    triangle[24] = triangle[15] = triangle[6];
-    triangle[25] = triangle[16] = triangle[7];
-    triangle[26] = triangle[17] = triangle[8];
+	/* handle the normals */
+	calc_normal(&triangle[0], &triangle[9], &triangle[18], &triangle[6]);
+	triangle[24] = triangle[15] = triangle[6];
+	triangle[25] = triangle[16] = triangle[7];
+	triangle[26] = triangle[17] = triangle[8];
 
-    DTMsendDataset(1,triangle,27,DTM_FLOAT);
-  }
+	DTMsendDataset(1, triangle, 27, DTM_FLOAT);
+    }
 
-  DTMend(1);
+    DTMend(1);
 
-  return 0;
+    return 0;
 
-#endif  /* DTM */
+#endif				/* DTM */
+
+}
+
+write_byu(p, nverts)
+float *p;
+int nverts;
+/* This subroutine writes out a MOVIE.BYU object file from the polygons */
+{
+
+    FILE *byu_fp;
+    register int i;
+    float ***conn, ***tricompact();
+    int uniq;
+    float **vlist;
+
+    /* write out minimal number number of vertices */
+    conn = tricompact(p, nverts);
+    uniq = conn[nverts] - conn[0]; vlist = conn[0];
+
+    /* open the ascii file for writing */
+    if ((byu_fp = fopen(BYU_NAME, "w")) == NULL) {
+	fprintf(stderr, "%s: error, can't open byu file %s\n",
+		MY_NAME, BYU_NAME);
+	return -1;
+    }
+    /* write out nparts nvertices nelements nconnections */
+    if (fprintf(byu_fp, "%8d%8d%8d%8d\n", 1, uniq, nverts / 3, nverts) == -1)
+	goto write_error;
+    /* write out beginning and ending elements of part */
+    if (fprintf(byu_fp, "%8d%8d\n", 1, nverts / 3) == -1)
+	goto write_error;
+
+    /* write out all of the vertices */
+    for (i = 0; i < uniq; i++) {
+	float *v = vlist[i];
+	if (fprintf(byu_fp, "%12.5e%12.5e%12.5e", v[0], v[1], v[2]) == -1)
+	    goto write_error;
+	if ((i & 1) && fputc('\n', byu_fp) == -1)
+	    goto write_error;
+    }
+    if ((i & 1) && fputc('\n', byu_fp) == -1)
+	goto write_error;
+
+    /* write out the connectivity */
+    for (i = 0; i < nverts; i++) {
+	int c = conn[i]-conn[0]+1;
+	if (i % 3 == 2)
+	    c = -c;
+	if (fprintf(byu_fp, "%8d", c) == -1)
+	    goto write_error;
+	if (i % 10 == 9 && fputc('\n', byu_fp) == 1)
+	    goto write_error;
+    }
+    if (i % 10 && fputc('\n', byu_fp) == 1)
+	goto write_error;
+
+    /* close the file */
+    if (fclose(byu_fp) == -1) {
+	fprintf(stderr, "%s: error, can't close byu file %s\n",
+		MY_NAME, BYU_NAME);
+	return -1;
+    }
+    free((char *)conn[0]); free((char *)conn);
+    return 0;
+
+write_error:
+    fprintf(stderr, "%s: error, can't write to byu file %s\n",
+	    MY_NAME, BYU_NAME);
+    return -1;
 
 }

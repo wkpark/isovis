@@ -1,0 +1,38 @@
+this is a heavily modified version of NCSA isovis which runs faster, generates
+smoother surfaces and supports some interactivity on the SGI platform.
+
+The basic isovis program extracts a constant-valued (iso) surface from
+a regular 3D volume of scalar data using Lorenson & Cline's marching cubes
+algorithm.
+
+The major speed improvements I made were to utilize coherency to reduce the
+number of redundant computations.  Additionally the code has been restructured
+so it vectorizes on a CRAY (although it only gets about 15Mflops on an X/MP).
+
+A second major addition to the program is the ability to compute normals
+at each triangle vertex by computing an approximation to the gradient at
+each cube corner using a central difference.  This results in far superior
+shading (i.e. considerably less faceting) at greater computational expense.
+
+The interactive features are somewhat primitive, but on a suitably endowed
+SGI machine (double buffered RGB, zbuffer) you can rotate and translate
+the isosurface.  Isovis goes to great lengths to transform the original
+tesselation into long triangle and line meshes for improved drawing
+performance on the SGI platform.  I have regularly used it to display upto
+50K triangles on a 4D/70GT with 16M of memory and upto 200K triangles with
+a 210GTX with 64M of memory.  [In general memory is the limiting factor]
+
+It is missing many features, but with the arrival of APE and other programs
+I probably won't be adding too much more to this program.  However, if you
+have an SGI workstation and regular 3D gridded data and want to see isosurfaces
+*fast* this is the program for you :-)
+
+
+	david blythe
+
+	formerly
+	ontario centre for large scale computation
+	drb@clsc.utoronto.ca
+
+	direct coments and suggestions to 
+	blythe@sgi.com

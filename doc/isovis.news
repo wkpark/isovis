@@ -1,0 +1,62 @@
+From: wes@uf.msc.edu (Wes Barris)
+Subject: Re: Marching Cubes. Where?
+Date: 18 Nov 91 18:33:38 GMT
+
+In article <1991Nov15.141029.1@lure.latrobe.edu.au>, chergr@lure.latrobe.edu.au writes:
+ > I am looking for source code for the Marching Cubes algorithm
+ > for plotting iso-value surfaces. I am trying to put together a
+ > program for visualising electron densities in molecules. 
+ > I have a copy of the article by Lorenson and Cline but its
+ > a bit sketchy. In fact it bears a strong resemblance to a
+ > 2-D contouring program I wrote. 
+ > 
+ > However time is short as always and a short cut is needed.
+ > My printout of previous discussion of this topic suggests
+ > that c source should be availible at szechuan.ncsc.org
+ >  but this site does not accept anonymous as a user. 
+ > 
+ > Can someone mail me the source or send me a working ftp
+ > site. 
+ > 
+ > Regards Richard Rothwell
+
+You're in luck.  Here is a portion of a previously made announcement
+refering to isovis.
+
+---------------------------------------------------------------------
+I have been working on modifications to the NCSA isosurface visualizer
+to make it run faster and do more things on the SGI workstation over the
+past year to the point where it has become a useful part of our visualization
+& movie making arsenal at OCLSC.  For anyone interested, the source code is
+available for anonymous ftp on
+        bessel.clsc.utoronto.ca
+in the file pub/clsc/isovis.tar.Z
+
+Keep in mind that this is a tool with a very specific purpose, to generate
+isosurfaces from a regular 3D volume of scalar data.  It can save the
+polygons in a file for fancier rendering using programs from Wavefront,
+etc.  Or you can manipulate the surface interactively on an SGI workstation
+to get a better feel for its structure.
+
+The distribution is a bit short on example data sets (you can get them from
+NCSA) but there is one small dataset available in pub/clsc/elec.40x40x40.Z
+which you can test the program with, e.g.
+
+        isovis -raw 40 40 40 -p -norm 2 -mc 0. 1. 1. elec.40x40x40 .01
+
+        have fun,
+        david blythe
+---------------------------------------------------------------------
+
+
+
+
+
+-- 
+      o o o o o o o . . .   ________________________________ _____=======_T___
+    o      _____           ||Wes Barris                    | | wes@msc.edu   |
+  .][__n_n_|DD[  ====_____  |Minnesota Supercomputer Center| |(612) 626-8090 |
+ >(________|__|_[_________]_|University of Minnesota_______|_|_FAX: 626-1596_|_
+ _/oo OOOOO oo`  ooo   ooo  'o^o^o                    o^o^o` 'o^o         o^o`
+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+It is one thing to praise discipline, and another to submit to it.

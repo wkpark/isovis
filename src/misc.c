@@ -22,324 +22,223 @@
 #include "isovis.h"
 
 
-/**************************** get_max_min ****************************/
-/**************************** get_max_min ****************************/
-/**************************** get_max_min ****************************/
-/**************************** get_max_min ****************************/
-
-void get_max_min(data,xdim,ydim,zdim,max,min)
+void
+get_max_min(data, xdim, ydim, zdim, maxp, minp)
 register float *data;
-int xdim,ydim,zdim;
-float *max,*min;
+int xdim, ydim, zdim;
+float *maxp, *minp;
 /* This subroutine finds the maximum & minimum data values */
 {
+    float *enddata;
+    float max, min;
 
-  float *enddata;
-
-  enddata = data + (xdim * ydim * zdim);
-  *max = *min = *(data++);
-  for ( ;data<enddata;data++) {
-    if (*data > *max)
-       *max = *data;
-    else
-       if (*data < *min)
-          *min = *data;
-  }
-
+    enddata = data + (xdim * ydim * zdim);
+    max = min = *(data++);
+#pragma ivdep
+    for (; data < enddata; data++) {
+	if (*data > max) max = *data;
+	if (*data < min) min = *data;
+    }
+    *maxp = max; *minp = min;
 }
 
-
-
-
-/**************************** calc_normal ****************************/
-/**************************** calc_normal ****************************/
-/**************************** calc_normal ****************************/
-/**************************** calc_normal ****************************/
-
-void calc_normal(p1,p2,p3,n)
-float p1[3],p2[3],p3[3];
+void
+calc_normal(p1, p2, p3, n)
+float p1[3], p2[3], p3[3];
 float n[3];
 /* This subroutine calculates a normal from three vertices */
 {
+    float u[3], v[3];
+    float sum, mag;
 
-  float u[3],v[3];
-  float sum, mag;
+    u[0] = p3[0] - p2[0];
+    u[1] = p3[1] - p2[1];
+    u[2] = p3[2] - p2[2];
 
-  u[0]=p3[0] - p2[0];
-  u[1]=p3[1] - p2[1];
-  u[2]=p3[2] - p2[2];
+    v[0] = p1[0] - p2[0];
+    v[1] = p1[1] - p2[1];
+    v[2] = p1[2] - p2[2];
 
-  v[0]=p1[0] - p2[0];
-  v[1]=p1[1] - p2[1];
-  v[2]=p1[2] - p2[2];
+    n[0] = u[1] * v[2] - u[2] * v[1];
+    n[1] = u[2] * v[0] - u[0] * v[2];
+    n[2] = u[0] * v[1] - u[1] * v[0];
 
-  n[0] = u[1]*v[2] - u[2]*v[1];
-  n[1] = u[2]*v[0] - u[0]*v[2];
-  n[2] = u[0]*v[1] - u[1]*v[0];
+    sum = n[0] * n[0] + n[1] * n[1] + n[2] * n[2];
+#ifdef mips
+    mag = fsqrt(sum);
+#else
+    mag = (float) sqrt((double) sum);
+#endif
 
-  sum = n[0]*n[0] + n[1]*n[1] + n[2]*n[2];
-  mag = (float)sqrt((double)sum);
+    if (mag == 0.0)
+	mag = 1.0;
 
-  if (mag == 0.0)
-     mag = 1.0;
-
-  n[0] = n[0] / mag;
-  n[1] = n[1] / mag;
-  n[2] = n[2] / mag;
+    n[0] = n[0] / mag;
+    n[1] = n[1] / mag;
+    n[2] = n[2] / mag;
 
 }
 
+float *VERTICES = NULL;		/* a pointer to the x coordinates */
+float *NORMALS = NULL;		/* a pointer to the x normals */
+int NUM_VERTICES = 0;		/* number of vertices currently stored */
+int VERT_LIMIT = 0;		/* currently allocated space for vertices */
+int VERT_INCR = 20000;		/* allocate space for this many vertices at a
+				 * time */
 
-
-
-/**************************** Polygon Globals ****************************/
-/**************************** Polygon Globals ****************************/
-/**************************** Polygon Globals ****************************/
-/**************************** Polygon Globals ****************************/
-
-float *XVERTICES=NULL;     /* a pointer to the x coordinates */
-float *YVERTICES=NULL;     /* a pointer to the y coordinates */
-float *ZVERTICES=NULL;     /* a pointer to the z coordinates */
-int   NUM_VERTICES=0;      /* number of vertices currently stored */
-int   VERT_LIMIT=0;        /* currently allocated space for vertices */
-int   VERT_INCR=20000;     /* allocate space for this many vertices at a time */
-int   *CONNECTIVITY=NULL;  /* a pointer to the connectivity */
-int   NUM_CONN=0;          /* number of connections currently stored */
-int   CONN_LIMIT=0;        /* currently allocated space for connections */
-int   CONN_INCR=20000;     /* allocate space for this many connections/time */
-int   CONN_SIZE=3;         /* number of elements per connection (triangle) */
-
-
-
-/**************************** add_polygon ****************************/
-/**************************** add_polygon ****************************/
-/**************************** add_polygon ****************************/
-/**************************** add_polygon ****************************/
-
-int add_polygon(p1,p2,p3)
-float *p1,*p2,*p3;
+add_polygon(p1, p2, p3, n1, n2, n3)
+float *p1, *p2, *p3, *n1, *n2, *n3;
 /* This subroutine stores a polygon (triangle) in a list of vertices */
 /* and connectivity.  This list can then be written out in different */
 /* file formats. */
 {
+    unsigned size, offset;
+    float *ptr;
+    int vert_alloc();		/* allocates space for the vertices */
 
-  unsigned size,offset;
-  float *ptr;
-  int vert_alloc();  /* allocates space for the vertices */
-  int conn_alloc();  /* allocates space for the connectivity */
+    /* see if we have enough space to store the vertices */
+    if (NUM_VERTICES >= (VERT_LIMIT - 3)) {
+	/* get more space */
+	VERT_LIMIT += VERT_INCR;/* This is the space we need */
+	size = VERT_LIMIT * sizeof(float);	/* size for malloc/realloc */
+	if (vert_alloc(size) == -1) {
+	    fprintf(stderr, "%s: error from vert_alloc\n", MY_NAME);
+	    return -1;
+	}
+    }
+    /* store the vertices */
+    ptr = VERTICES + NUM_VERTICES * 3;
+    *ptr++ = *p1++;		/* x of first vertex */
+    *ptr++ = *p1++;		/* y of first vertex */
+    *ptr++ = *p1++;		/* z of first vertex */
+    *ptr++ = *p2++;		/* x of second vertex */
+    *ptr++ = *p2++;		/* y of second vertex */
+    *ptr++ = *p2++;		/* z of second vertex */
+    *ptr++ = *p3++;		/* x of third vertex */
+    *ptr++ = *p3++;		/* y of third vertex */
+    *ptr++ = *p3++;		/* z of third vertex */
 
-  /* see if we have enough space to store the vertices */
-  if (NUM_VERTICES >= (VERT_LIMIT-3)) {
-     /* get more space */
-     VERT_LIMIT += VERT_INCR; /* This is the space we need */
-     size = VERT_LIMIT * sizeof(float);  /* size for malloc/realloc */
-     if (vert_alloc(size) == -1) {
-        fprintf(stderr,"%s: error from vert_alloc\n",MY_NAME);
-        return -1;
-     }
-  }
+    ptr = NORMALS + NUM_VERTICES * 3;
+    *ptr++ = *n1++; *ptr++ = *n1++; *ptr++ = *n1++;
+    *ptr++ = *n2++; *ptr++ = *n2++; *ptr++ = *n2++;
+    *ptr++ = *n3++; *ptr++ = *n3++; *ptr++ = *n3++;
 
-  /* store the vertices */
-  ptr = XVERTICES + NUM_VERTICES;
-  *(ptr++) = *p1;      /* x of first vertex */
-  *(ptr++) = *p2;      /* x of second vertex */
-  *(ptr) = *p3;        /* x of third vertex */
+    NUM_VERTICES += 3;
 
-  ptr = YVERTICES + NUM_VERTICES;
-  *(ptr++) = *(p1+1);  /* y of first vertex */
-  *(ptr++) = *(p2+1);  /* y of second vertex */
-  *(ptr)   = *(p3+1);  /* y of third vertex */
-
-  ptr = ZVERTICES + NUM_VERTICES;
-  *(ptr++) = *(p1+2);  /* z of first vertex */
-  *(ptr++) = *(p2+2);  /* z of second vertex */
-  *(ptr)   = *(p3+2);  /* z of third vertex */
-
-
-  /* see if we have enough space to store the connectivity */
-  if (NUM_CONN >= (CONN_LIMIT-1)) {
-     /* get more space */
-     CONN_LIMIT += CONN_INCR;  /* this is the space we need */
-     size = CONN_LIMIT * CONN_SIZE * sizeof(int);  /* size for malloc/realloc */
-     if (conn_alloc(size) == -1) {
-        fprintf(stderr,"%s: error from vert_alloc\n",MY_NAME);
-        return -1;
-     }
-  }
-
-  offset = NUM_CONN*CONN_SIZE;
-  /* store the connectivity info */
-  *(CONNECTIVITY+offset)   = NUM_VERTICES+1;
-  *(CONNECTIVITY+offset+1) = NUM_VERTICES+2;
-  *(CONNECTIVITY+offset+2) = NUM_VERTICES+3;
-
-  NUM_VERTICES += 3;  /* keep track of how many vertices we have */
-  NUM_CONN++;         /* increment the connectivity */
-
-  return 0;
-
+    return 0;
 }
 
-
-
-
-/**************************** vert_alloc ****************************/
-/**************************** vert_alloc ****************************/
-/**************************** vert_alloc ****************************/
-/**************************** vert_alloc ****************************/
-
-int vert_alloc(size)
+int 
+vert_alloc(size)
 int size;
 /* This subroutine is for allocating memory for the vertex lists */
 {
 
-  /* flag to allocate memory from 'malloc' first time through */
-  static int first_alloc=1;
+    /* flag to allocate memory from 'malloc' first time through */
+    static int first_alloc = 1;
 
-  if (first_alloc) {
-     /* use 'malloc' for the first time */
-     if ((XVERTICES=(float *)malloc(size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store x vertices\n",
-                MY_NAME);
-        return -1;
-     }
-     if ((YVERTICES=(float *)malloc(size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store y vertices\n",
-                MY_NAME);
-        return -1;
-     }
-     if ((ZVERTICES=(float *)malloc(size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store z vertices\n",
-                MY_NAME);
-        return -1;
-     }
-     first_alloc=0;  /* use 'realloc' from now on */
-  } else {
-     /* use 'realloc' from now on */
-     if ((XVERTICES=(float *)realloc((char *)XVERTICES,size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store x vertices\n",
-                MY_NAME);
-        return -1;
-     }
-     if ((YVERTICES=(float *)realloc((char *)YVERTICES,size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store y vertices\n",
-                MY_NAME);
-        return -1;
-     }
-     if ((ZVERTICES=(float *)realloc((char *)ZVERTICES,size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store z vertices\n",
-                MY_NAME);
-        return -1;
-     }
-  }
+    if (first_alloc) {
+	/* use 'malloc' for the first time */
+	if ((VERTICES = (float *) malloc(size * 3)) == NULL) {
+	    fprintf(stderr, "%s: error, not enough memory to store vertices\n",
+		    MY_NAME);
+	    return -1;
+	}
+	if ((NORMALS = (float *) malloc(size * 3)) == NULL) {
+	    fprintf(stderr, "%s: error, not enough memory to store normals\n",
+		    MY_NAME);
+	    return -1;
+	}
+	first_alloc = 0;	/* use 'realloc' from now on */
+    } else {
+	/* use 'realloc' from now on */
+	if ((VERTICES = (float *) realloc((char *) VERTICES, size * 3)) == NULL) {
+	    fprintf(stderr, "%s: error, not enough memory to store vertices\n",
+		    MY_NAME);
+	    return -1;
+	}
+	if ((NORMALS = (float *) realloc((char *) NORMALS, size * 3)) == NULL) {
+	    fprintf(stderr, "%s: error, not enough memory to store normals\n",
+		    MY_NAME);
+	    return -1;
+	}
+    }
 
-  return 0;
-
+    return 0;
 }
 
-
-
-
-/**************************** conn_alloc ****************************/
-/**************************** conn_alloc ****************************/
-/**************************** conn_alloc ****************************/
-/**************************** conn_alloc ****************************/
-
-int conn_alloc(size)
-int size;
-/* This subroutine is for allocating memory for the connectivity list */
+void
+release_memory()
 {
 
-  /* flag to allocate memory from 'malloc' first time through */
-  static int first_alloc=1;
-
-  if (first_alloc) {
-     /* use 'malloc' for the first time thru */
-     if ((CONNECTIVITY=(int *)malloc(size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store connectivity\n",
-                MY_NAME);
-        return -1;
-     }
-     first_alloc=0;  /* turn off this flag */
-  } else {
-     /* use 'realloc' from now on */
-     if ((CONNECTIVITY=(int *)realloc((char *)CONNECTIVITY,size)) == NULL) {
-        fprintf(stderr,"%s: error, not enough memory to store connectivity\n",
-                MY_NAME);
-        return -1;
-     }
-
-  }
-
-  return 0;
-
+    if (VERTICES) {
+	free(VERTICES);
+	VERTICES = NULL;
+    }
+    if (NORMALS) {
+	free(NORMALS);
+	NORMALS = NULL;
+    }
 }
 
-
-
-
-/**************************** dump_vset ****************************/
-/**************************** dump_vset ****************************/
-/**************************** dump_vset ****************************/
-/**************************** dump_vset ****************************/
-
-int dump_vset()
+dump_vset()
 /* This subroutine calls a subroutine to write out a HDF VSet */
 {
+    int write_vset();
 
-  int write_vset();
+    if (VERBOSE)
+	printf("%s: writing VSet output\n", MY_NAME);
 
-  if (VERBOSE)
-     printf("%s: writing VSet output\n",MY_NAME);
-
-  return (write_vset(XVERTICES,YVERTICES,ZVERTICES,NUM_VERTICES,
-             CONNECTIVITY,NUM_CONN));
-
-
+    return (write_vset(VERTICES, NUM_VERTICES));
 }
 
+dump_wft()
+/* This subroutine calls a subroutine to write out a wavefront .obj file */
+{
+    int write_wft();
 
+    if (VERBOSE)
+	printf("%s: writing WFT output\n", MY_NAME);
 
+    return (write_wft(VERTICES, NUM_VERTICES, NORMALS));
+}
 
-/**************************** dump_wft ****************************/
-/**************************** dump_wft ****************************/
-/**************************** dump_wft ****************************/
-/**************************** dump_wft ****************************/
-int dump_wft()
+dump_dtm()
 /* This subroutine calls a subroutine to write out a wft file */
 {
+    int write_dtm();
 
-  int write_wft();
+    if (VERBOSE)
+	printf("%s: writing DTM output\n", MY_NAME);
 
-  if (VERBOSE)
-     printf("%s: writing WFT output\n",MY_NAME);
-
-  return (write_wft(XVERTICES,YVERTICES,ZVERTICES,NUM_VERTICES,
-             CONNECTIVITY,NUM_CONN));
-
-
+    return (write_dtm(VERTICES, NUM_VERTICES));
 }
 
-
-
-
-/**************************** dump_dtm ****************************/
-/**************************** dump_dtm ****************************/
-/**************************** dump_dtm ****************************/
-/**************************** dump_dtm ****************************/
-/**************************** dump_dtm ****************************/
-int dump_dtm()
-/* This subroutine calls a subroutine to write out a wft file */
+dump_sgi()
 {
+#ifdef SGI
+    int write_sgi();
 
-  int write_dtm();
-
-  if (VERBOSE)
-     printf("%s: writing DTM output\n",MY_NAME);
-
-  return (write_dtm(XVERTICES,YVERTICES,ZVERTICES,NUM_VERTICES,
-             CONNECTIVITY,NUM_CONN));
-
-
+    return (write_sgi(VERTICES, NORMALS, NUM_VERTICES));
+#endif
 }
 
+dump_byu()
+/* This subroutine calls a subroutine to write out a MOVIE.BYU file */
+{
+    int write_byu();
+
+    if (VERBOSE)
+	printf("%s: writing BYU output\n", MY_NAME);
+
+    return (write_byu(VERTICES, NUM_VERTICES));
+}
+
+smooth_norms() {
+    printf("smoothing ...\n");
+    if (VERBOSE)
+	printf("%s: smoothing ...", MY_NAME);
+    smooth(VERTICES, NORMALS, NUM_VERTICES);
+    if (VERBOSE)
+	printf("%s: done\n", MY_NAME);
+}
