@@ -74,9 +74,15 @@ float threshold;
     ydim1 = ydim - 1;
     xdim1 = xdim - 1;
 
+    if (XINC == 0.0 && YINC == 0.0 && ZINC == 0.0) {
     xtrans = -((float) xdim / 2.0);
     ytrans = -((float) ydim / 2.0);
     ztrans = -((float) zdim / 2.0);
+    } else {
+	ztrans=XMIN/XINC;
+	ytrans=YMIN/YINC;
+	xtrans=ZMIN/ZINC;
+    }
 
     XDIMYDIM = xdim * ydim;
 
@@ -115,7 +121,7 @@ float threshold;
 	printf("%s: %d triangles generated\n", MY_NAME, npolys);
 
     /* don't do this when its time for multiple iso-surfaces */
-    free((char *)data);
+//    free((char *)data);
     return 0;
 
 }

@@ -77,7 +77,8 @@ float *max, *min;
 		MY_NAME);
 	return -1;
     }
-    maxmin = DFSDgetmaxmin(max, min);
+//    maxmin = DFSDgetmaxmin(max, min);
+    maxmin = DFSDgetrange(max, min);
     ret = DFSDgetdata(filename, rank, shape, *data);
     if (ret != 0) {
 	fprintf(stderr, "%s: error from DFSDgetdata %d file %s\n",
@@ -86,6 +87,34 @@ float *max, *min;
     }
     if (maxmin == -1)
 	get_max_min(*data, *xdim, *ydim, *zdim, max, min);
+//////////
+    {
+// read grid dim/scale/inc
+	float t[100];
+    maxmin = DFSDgetdimscale(1, *xdim,&t);
+	if (VERBOSE)
+		fprintf(stderr, "%f,%f: dimscale\n",t[0],t[1]);
+	XMIN=t[0];
+	XINC=t[1]-t[0];
+	if (VERBOSE)
+		fprintf(stderr, "xmin=%f, xinc=%f\n",XMIN,XINC);
+    maxmin = DFSDgetdimscale(2, *ydim,&t);
+	if (VERBOSE)
+		fprintf(stderr, "%f,%f: dimscale\n",t[0],t[1]);
+	YMIN=t[0];
+	YINC=t[1]-t[0];
+	if (VERBOSE)
+		fprintf(stderr, "ymin=%f, yinc=%f\n",YMIN,YINC);
+    maxmin = DFSDgetdimscale(3, *xdim,&t);
+	if (VERBOSE)
+		fprintf(stderr, "%f,%f: dimscale\n",t[0],t[1]);
+	ZMIN=t[0];
+	ZINC=t[1]-t[0];
+	if (VERBOSE)
+		fprintf(stderr, "zmin=%f, zinc=%f\n",ZMIN,ZINC);
+    }
+/////////
+
     return 0;
 #else
     fprintf(stderr, "%s: hdf support not installed\n");
@@ -151,6 +180,106 @@ int xdim, ydim;
 }
 #endif
 
+/* Raster 3D */
+write_r3d(p, nverts, n)
+float *p, *n;
+int nverts;
+/* This subroutine writes out a raster3d file from the polygons */
+{
+    FILE *r3d_fp;
+    register int i, j;
+    float ***conn, ***tricompact(), ***tricompactn();
+    int uniq;
+    float **vlist;
+
+    float scalex,scaley,scalez;
+
+    if (XINC==0.0 && YINC==0.0 && ZINC==0.0) {
+	   scalex=1.0;
+	   scaley=1.0;
+	   scalez=1.0;
+    } else {
+	   scalex=ZINC;
+	   scaley=YINC;
+	   scalez=XINC;
+    }
+
+    /* write out minimal number number of vertices */
+    conn = NORMAL_TYPE ? tricompactn(p, n, nverts) : tricompact(p, nverts);
+    uniq = conn[nverts] - conn[0]; vlist = conn[0];
+
+    /* open the ascii file for writing */
+    if ((r3d_fp = fopen(R3D_NAME, "w")) == NULL) {
+	fprintf(stderr, "%s: error, can't open r3d file %s\n",
+		MY_NAME, R3D_NAME);
+	return -1;
+    }
+    /* write out all of the vertices */
+    for (i = 0; i < uniq; i++) {
+	float *v = vlist[i];
+	v[0]*=scalex;
+	v[1]*=scaley;
+	v[2]*=scalez;
+    }
+    if (1) {
+	/* write out all of the normals */
+	for (i = 0; i < uniq; i++) {
+	    float *v = n+(vlist[i]-p);
+	    v[0]*=scaley*scalez;
+	    v[1]*=scalex*scalez;
+	    v[2]*=scalex*scaley;
+	}
+	/* write out the connectivity */
+	j = 0;
+	for (i = 0; i < nverts / 3; i++) {
+	    int i1=conn[j]-conn[0],
+		i2=conn[j+1]-conn[0],
+		i3=conn[j+2]-conn[0];
+	    float *v1=vlist[i1],
+	          *v2=vlist[i2],
+		  *v3=vlist[i3];
+	    float *n1 = n+(vlist[i1]-p),
+	          *n2 = n+(vlist[i2]-p),
+	          *n3 = n+(vlist[i3]-p);
+	    if (fprintf(r3d_fp, "# f %d %d %d\n",i1+1,i2+2,i3+3) == -1) {
+	        fprintf(stderr, "%s: error, can't write to r3d file %s\n",
+		    MY_NAME, R3D_NAME);
+		return -1;
+	    }
+	    if (fprintf(r3d_fp, "1\n%8.5f %8.5f %8.5f %8.5f %8.5f %8.5f %8.5f %8.5f %8.5f  %4.3f %4.3f %4.3f\n",
+			v1[0], v1[1], v1[2],
+			v2[0], v2[1], v2[2],
+			v3[0], v3[1], v3[2],
+			FACE_COLOR[0],FACE_COLOR[1],FACE_COLOR[2]) == -1) {
+		fprintf(stderr, "%s: error, can't write to r3d file %s\n",
+			MY_NAME, R3D_NAME);
+		return -1;
+	    }
+	    if (NORMAL_TYPE) {
+	    if (fprintf(r3d_fp, "7\n%13.10f %13.10f %13.10f %13.10f %13.10f %13.10f %13.10f %13.10f %13.10f\n",
+			n1[0], n1[1], n1[2],
+			n2[0], n2[1], n2[2],
+			n3[0], n3[1], n3[2]) == -1) {
+		fprintf(stderr, "%s: error, can't write to r3d file %s\n",
+			MY_NAME, R3D_NAME);
+		return -1;
+	    }
+	    }
+	    j += 3;
+	}
+    }
+
+    /* close the file */
+    if (fclose(r3d_fp) == -1) {
+	fprintf(stderr, "%s: error, can't close r3d file %s\n",
+		MY_NAME, R3D_NAME);
+	return -1;
+    }
+    free((char *)conn[0]); free((char *)conn);
+    return 0;
+
+}
+
 write_wft(p, nverts, n)
 float *p, *n;
 int nverts;
@@ -209,7 +338,8 @@ int nverts;
 	    int c1=conn[j]-conn[0]+1,
 		c2=conn[j+1]-conn[0]+1,
 		c3=conn[j+2]-conn[0]+1;
-	    if (fprintf(wft_fp, "fo %d//%d %d//%d %d//%d\n", c1, c1, c2, c2,
+//	    if (fprintf(wft_fp, "fo %d//%d %d//%d %d//%d\n", c1, c1, c2, c2,
+	    if (fprintf(wft_fp, "f %d//%d %d//%d %d//%d\n", c1, c1, c2, c2,
 			c3, c3) == -1) {
 		fprintf(stderr, "%s: error, can't write to wft file %s\n",
 			MY_NAME, WFT_NAME);
@@ -225,7 +355,8 @@ int nverts;
 	    int c1=conn[j]-conn[0]+1,
 		c2=conn[j+1]-conn[0]+1,
 		c3=conn[j+2]-conn[0]+1;
-	    if (fprintf(wft_fp, "fo %d %d %d\n", c1, c2, c3) == -1) {
+//	    if (fprintf(wft_fp, "fo %d %d %d\n", c1, c2, c3) == -1) {
+	    if (fprintf(wft_fp, "f %d %d %d\n", c1, c2, c3) == -1) {
 		fprintf(stderr, "%s: error, can't write to wft file %s\n",
 			MY_NAME, WFT_NAME);
 		return -1;
@@ -344,6 +475,8 @@ int nverts;
 		MY_NAME);
 	return -1;
     }
+
+#define LOCAL_INTTYPE 4
     VSfdefine(vplist3, "plist3", LOCAL_INTTYPE, 3);
     VSsetname(vplist3, "plist3");
     VSsetfields(vplist3, "plist3");

@@ -395,6 +395,30 @@ char *argv[];
 	    i++;		/* skip over raster name */
 #endif
 	}
+
+	if (!strcmp(argv[i], "-fc")) {
+	    if (i >= (argc - 5)) {
+		fprintf(stderr, "%s: not enough arguments for -fc\n", MY_NAME);
+		return -1;
+	    }
+	    i++;
+	    found = 1;
+	    FACE_COLOR[0] = atof(argv[i++]);
+	    FACE_COLOR[1] = atof(argv[i++]);
+	    FACE_COLOR[2] = atof(argv[i++]);
+	    if ((FACE_COLOR[0] < 0.0) || (1.0 < FACE_COLOR[0])) {
+		fprintf(stderr, "%s: error, illegal red background value\n", MY_NAME);
+		return -1;
+	    }
+	    if ((FACE_COLOR[1] < 0.0) || (1.0 < FACE_COLOR[1])) {
+		fprintf(stderr, "%s: error, illegal green background value\n", MY_NAME);
+		return -1;
+	    }
+	    if ((FACE_COLOR[2] < 0.0) || (1.0 < FACE_COLOR[2])) {
+		fprintf(stderr, "%s: error, illegal blue background value\n", MY_NAME);
+		return -1;
+	    }
+	}
 	if (!strcmp(argv[i], "-obj")) {
 	    if (i >= (argc - 3)) {
 		fprintf(stderr, "%s: not enough arguments for -obj\n", MY_NAME);
@@ -404,6 +428,17 @@ char *argv[];
 	    found = 1;
 	    strcpy(WFT_NAME, argv[i++]);
 	}
+
+	if (!strcmp(argv[i], "-r3d")) {
+	    if (i >= (argc - 3)) {
+		fprintf(stderr, "%s: not enough arguments for -r3d\n", MY_NAME);
+		return -1;
+	    }
+	    i++;
+	    found = 1;
+	    strcpy(R3D_NAME, argv[i++]);
+	}
+
 	if (!strcmp(argv[i], "-vset")) {
 #ifdef VSET
 	    if (i >= (argc - 3)) {
@@ -443,6 +478,12 @@ char *argv[];
 	    DTM_OUTPUT = 1;
 	}
 #endif
+
+	if (!strcmp(argv[i],"-mo")) {
+	    i++;
+	    found=1;
+	    ORBITAL=1;
+	}
 
 	if (!strcmp(argv[i], "-p")) {
 	    i++;
@@ -526,10 +567,13 @@ usage()
     printf("           -smooth                      Average normals\n");
     printf("           -def                         Display default values\n");
     printf("           -p                           Print information\n");
+    printf("           -mo                          Molecular Orbital\n");
+    printf("           -fc <fr fg fb>               Face color for Raster3D\n");
 #ifdef VSET
     printf("           -vset <hdf.vset>             Save VSet polygons\n");
 #endif
     printf("           -obj <obj.file>              Save obj polygons\n");
+    printf("           -r3d <r3d.file>              Save Raster3d polygons\n");
     printf("           -byu <byu.file>              Save byu polygons\n");
     printf("           -raw <x y z>                 Raw input file dims\n");
     printf("\n");

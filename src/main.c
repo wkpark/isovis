@@ -90,6 +90,11 @@ char *argv[];
     strcpy(inp_file, argv[(argc - 2)]);
 
     threshold = (float) atof(argv[(argc - 1)]);
+    if (threshold < 0.0) {
+	FACE_COLOR[0]=0.646;
+	FACE_COLOR[1]=0.022;
+	FACE_COLOR[2]=0.022;
+    }
 
     if (parse_options(argc, argv) == -1) {
 	fprintf(stderr, "%s: error from parse_options\n", MY_NAME);
@@ -155,6 +160,14 @@ char *argv[];
 	printf("%s: error from iso_surface\n", MY_NAME);
 	exit(1);
     }
+    if (ORBITAL) {
+        printf("%s: add MO surface\n",MY_NAME);
+        if (iso_surface(data,xdim,ydim,zdim,-threshold) == -1) {
+        printf("%s: error from iso_surface\n",MY_NAME);
+        exit(1);
+        }
+    }
+
     if (SMOOTH) {
 	if (NORMAL_TYPE) {
 	    fprintf(stderr, "%s: warning smoothing gradient normals\n", MY_NAME);
@@ -169,6 +182,15 @@ char *argv[];
 	    exit(1);
 	}
     }
+
+    if (strcmp(R3D_NAME, "")) {
+	/* If a r3d name is specified, write out a r3d object file */
+	if (dump_r3d() == -1) {
+	    fprintf(stderr, "%s: error from dump_r3d\n", MY_NAME);
+	    exit(1);
+	}
+    }
+#ifdef VSET
     if (strcmp(VSET_NAME, "")) {
 	/* If a VSet name is specified, write out a HDF VSet */
 	if (dump_vset() == -1) {
@@ -176,6 +198,7 @@ char *argv[];
 	    exit(1);
 	}
     }
+#endif
     if (strcmp(BYU_NAME, "")) {
 	/* If a BYU name is specified, write out a Movie.BYU file */
 	if (dump_byu() == -1) {

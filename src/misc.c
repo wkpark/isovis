@@ -192,6 +192,17 @@ dump_vset()
     return (write_vset(VERTICES, NUM_VERTICES));
 }
 
+dump_r3d()
+/* This subroutine calls a subroutine to write out a radter3d .r3d file */
+{
+    int write_r3d();
+
+    if (VERBOSE)
+	printf("%s: writing R3D output\n", MY_NAME);
+
+    return (write_r3d(VERTICES, NUM_VERTICES, NORMALS));
+}
+
 dump_wft()
 /* This subroutine calls a subroutine to write out a wavefront .obj file */
 {

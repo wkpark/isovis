@@ -114,7 +114,7 @@ float threshold;
 	printf("%s: %d polygons generated\n", MY_NAME, npolys);
 
     /* don't do this when its time for multiple iso-surfaces */
-    free((char *)data);
+//    free((char *)data);
     return 0;
 
 }
