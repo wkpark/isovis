@@ -1,0 +1,72 @@
+
+NCSA Isosurface Visualizer Notes
+August 1990
+National Center for Supercomputing Applications
+-----------------------------------------------
+
+Files in this tar file include the binaries and the source.  The binaries
+are:
+
+	isovis_sgi   - the executable for SGI Irises (4D)
+	isovis_dgl   - the executable for SGI Irises using DGL
+	isovis_sun3  - the executable for Sun 3
+	isovis_sun4  - the executable for Sun 4
+
+By typing just the name of the program, it will respond with a list
+of available options for your particular machine.  The basic command
+line format is:
+
+	isovis [-options] <3d_sds.hdf> <threshold>
+
+Where [-options] can be zero or more options to isovis, <3d_sds.hdf>
+is the name of a three dimensional data set which must be a
+Scientific Data Set in a NCSA HDF formatted file, and <threshold>
+is the particular floating point value of the isosurface that you
+are interested in.
+
+The options fall into two categories: general options and SGI options.
+The general options are:
+
+	-def	- print default values
+	-p	- print status during execution
+	-vset	- create an HDF file containing a VSet of the polygons
+	-obj	- create an ascii .obj file containing the polygons
+
+The SGI options are:
+
+	-bc	- set the background color of the window
+	-d	- toggle the display on and off
+	-k	- set lighting characteristics
+	-lc	- set light color
+	-ll	- set light location
+	-ns	- set specular exponent
+	-ntsc	- use a window in NTSC position
+	-o 	- save the image as an HDF 24 bit raster image
+	-r	- rotate the image
+	-s	- scale the image
+	-t	- transate the image
+	-v	- set the window location
+
+The range of values for '-bc' and '-lc' are from 0.0 to 1.0 and they 
+specify the RGB colors.  The values for '-r' are in degrees, and the
+values for '-ll', '-s', and '-t' are in unspecified units.
+
+An example command line might be:
+
+	isovis_sgi -vset demo.hdf -bc 0. 0. 1. -o img.hdf -r 45. 45. 45. \
+			 dataset.sds 5.0
+
+The above command would generate an isosurface of threshold equal to 5.0.
+The isosurface would be displayed in a window on the SGI with the background
+color set to blue.  The image would be rotated by 45 degrees in x, y,
+and z directions.  The resultant polygons would be saved to an HDF
+file, named 'demo.hdf', containing a VSet (which could be viewed by 
+a program such as NCSA PolyView), and a 24 bit raster image would also 
+be saved in another HDF file named 'img.hdf'.
+
+
+Documentation for NCSA Isosurface Visualizer is forth coming.
+
+Example three dimensional SDS HDF files can be found on the NCSA
+Anonymous FTP server (ftp.ncsa.uiuc.edu/128.174.20.50) in the
+directory XDataSlice/samples.
