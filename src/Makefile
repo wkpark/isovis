@@ -3,7 +3,8 @@
 # your system.
 #
 #
-CC = cc -cckr
+#CC = cc -cckr
+CC=gcc
 
 # on your local cray
 #CC = scc -hintrinsics,inline,aggress,report=isv
@@ -15,10 +16,13 @@ LFLAGS  =
 #N_LIBS = -lvg -ldf
 #N_INCLUDES = -I/usr/local/include/ncsa
 
+N_CFLAGS = -DHDF #-DVSET -DVSET_INTERFACE
+N_INCLUDES = -I/usr/include/hdf
+N_LIBS = -L/usr/lib -ldf -ljpeg -lz
 # non SGI systems
-#CFLAGS   = -O $(N_CFLAGS)
-#LIBS     = $(N_LIBS) -lm
-#INCLUDES = -I. $(N_INCLUDES)
+CFLAGS   = -O2 $(N_CFLAGS)
+LIBS     = $(N_LIBS) -lm
+INCLUDES = -I. $(N_INCLUDES)
 
 # SGI systems
 
@@ -28,16 +32,17 @@ LFLAGS  =
 #PFLAG = -DMYPUP
 
 # uncomment if you like to save things in SGI image format
-IFLAG = -DSGI_IMAGE
-IMAGE = -limage
+#IFLAG = -DSGI_IMAGE
+#IMAGE = -limage
 
 # uncomment if you want to use polymode() on the VGX to do hidden line
 POLYMODE = -DPOLYMODE
 # uncomment of you want to use linesmooth() to antialias wire frame drawings
-ANTI = -DANTIALIAS
+#ANTI = -DANTIALIAS
 
-CFLAGS   = -g -DSGI $(N_CFLAGS) -float ${PFLAG} ${IFLAG} $(POLYMODE) $(ANTI)
-LIBS     = $(N_LIBS) ${PUP} -lgl_s -lfastm ${IMAGE} -lm -lc_s
+CFLAGS   = -g $(N_CFLAGS) ${PFLAG} ${IFLAG} $(POLYMODE) $(ANTI)
+#LIBS     = $(N_LIBS) ${PUP} -lgl_s ${IMAGE} -lm -lc_s
+LIBS     = $(N_LIBS) -lm
 INCLUDES = -I. $(N_INCLUDES)
 
 # SGI - DGL systems
