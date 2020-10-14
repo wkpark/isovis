@@ -18,6 +18,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "isovis.h"
 
 #ifdef HDF
@@ -51,7 +52,6 @@ float *max, *min;
     int ret;
     int maxmin;
     void get_max_min();		/* searches for max and min */
-    char *malloc();
 
     ret = DFSDgetdims(filename, &rank, shape, 3);
     if (ret != 0) {

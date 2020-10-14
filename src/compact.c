@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #define VERBOSE(x)	x
 
@@ -11,8 +12,8 @@ struct hash {
 #define TABLE_SIZE 9967
 
 static struct hash *htable[TABLE_SIZE];
-
-char *malloc();
+static struct hash *newhash();
+static freehash();
 
 static
 hashit(v)
@@ -42,7 +43,7 @@ float *v, *n;
     }
     for(i = 0; i < nv; i++) {
 	int h = hashit(v+3*i);
-	struct hash *hh, *newhash();
+	struct hash *hh;
 
 	/* if vertex already exists - ignore */
 	for(hh = htable[h]; hh; hh=hh->next) {
@@ -100,7 +101,7 @@ float *v;
     }
     for(i = 0; i < nv; i++) {
 	int h = hashit(v+3*i);
-	struct hash *hh, *newhash();
+	struct hash *hh;
 
 	/* if vertex already exists - ignore */
 	for(hh = htable[h]; hh; hh=hh->next) {
